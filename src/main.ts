@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { envs } from './configs/dotenv.configs';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 
 const logger = new Logger('bootstrap');
 async function bootstrap() {
@@ -20,6 +21,12 @@ async function bootstrap() {
     }),
   );
 
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.NATS,
+    options: {
+      servers: envs.NATS_SERVER,
+    },
+  });
   // app.setGlobalPrefix('api');
 
   await app.listen(envs.PORT);
