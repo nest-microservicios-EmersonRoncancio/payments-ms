@@ -1,11 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { envs } from 'src/configs/dotenv.configs';
 import Stripe from 'stripe';
 import { PaymentSessionDto } from './dto/payment-session.dto';
 import { Request, Response } from 'express';
+import { NATS_CLIENT } from 'src/configs/services.configs';
+import { ClientProxy } from '@nestjs/microservices';
 
 @Injectable()
 export class PaymentService {
+  constructor(@Inject(NATS_CLIENT) private readonly natsClient: ClientProxy) {}
+
   private readonly secret = new Stripe(envs.SECRET_KEY_STRIPE);
 
   async createPaymentSession(paymentDto: PaymentSessionDto) {
@@ -46,10 +50,6 @@ export class PaymentService {
 
     const enpointSecret = envs.SECRET_KEY_WEBHOOK_STRIPE;
 
-    console.log(req['rawBody']);
-    console.log(sig);
-    console.log(enpointSecret);
-
     try {
       event = this.secret.webhooks.constructEvent(
         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -57,7 +57,6 @@ export class PaymentService {
         sig!,
         enpointSecret,
       );
-      console.log(event);
     } catch (err) {
       console.log(`Error message: ${err}`);
       res.status(400).send(`Webhook Error: ${err}`);
@@ -67,14 +66,21 @@ export class PaymentService {
     switch (event.type) {
       case 'charge.succeeded': {
         const session = event.data.object;
-        console.log({
+
+        const payload = {
+          stripeId: session.id,
           orderId: session.metadata.orderId,
-        });
+          receiptUrl: session.receipt_url,
+        };
+
+        this.natsClient.emit('payment.success', payload);
         break;
       }
       default: {
         console.log(`Unhandled event type ${event.type}`);
       }
     }
+
+    return res.status(200).send({ received: true });
   }
 }
