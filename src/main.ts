@@ -9,6 +9,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
+  console.log(envs.NATS_SERVER);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -21,14 +22,20 @@ async function bootstrap() {
     }),
   );
 
-  app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.NATS,
-    options: {
-      servers: envs.NATS_SERVER,
+  app.connectMicroservice<MicroserviceOptions>(
+    {
+      transport: Transport.NATS,
+      options: {
+        servers: envs.NATS_SERVER,
+      },
     },
-  });
+    {
+      inheritAppConfig: true,
+    },
+  );
   // app.setGlobalPrefix('api');
 
+  await app.startAllMicroservices();
   await app.listen(envs.PORT);
 }
 bootstrap()
